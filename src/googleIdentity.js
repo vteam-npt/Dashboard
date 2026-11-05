@@ -26,7 +26,9 @@ export async function renderGoogleSignIn(element, clientId, onCredential) {
  }});
  element.replaceChildren();
  for(const text of ['signin_with','signup_with']) {
-  const button=document.createElement('div');button.className='google-signin-option';element.appendChild(button);
+  const group=document.createElement('div');group.className='google-signin-option';
+  const label=document.createElement('span');label.className='google-signin-label';label.textContent=text==='signin_with'?'เข้าสู่ระบบ':'สมัครใช้งาน';
+  const button=document.createElement('div');group.append(label,button);element.appendChild(group);
   window.google.accounts.id.renderButton(button,{type:'standard',theme:'outline',size:'large',text,shape:'pill',locale:'th'});
  }
 }
