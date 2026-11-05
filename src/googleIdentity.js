@@ -25,5 +25,8 @@ export async function renderGoogleSignIn(element, clientId, onCredential) {
   if(typeof response?.credential==='string'&&response.credential) onCredential(response.credential);
  }});
  element.replaceChildren();
- window.google.accounts.id.renderButton(element,{type:'standard',theme:'outline',size:'large',text:'continue_with',shape:'pill',locale:'th'});
+ for(const text of ['signin_with','signup_with']) {
+  const button=document.createElement('div');button.className='google-signin-option';element.appendChild(button);
+  window.google.accounts.id.renderButton(button,{type:'standard',theme:'outline',size:'large',text,shape:'pill',locale:'th'});
+ }
 }
