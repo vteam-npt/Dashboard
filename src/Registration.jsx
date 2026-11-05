@@ -5,8 +5,8 @@ import './registration.css';
 import {renderGoogleSignIn} from './googleIdentity';
 
 /** Auth gateway must verify Google credentials on the server. No local identity simulation. */
-export function Registration({gateway, clientId, onAuthenticated}) {
- const [step,setStep]=useState('welcome'),[name,setName]=useState(''),[branch,setBranch]=useState(''),[manager,setManager]=useState(''),[role,setRole]=useState('STAFF'),[managers,setManagers]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
+export function Registration({gateway, clientId, onAuthenticated, initialStatus}) {
+ const [step,setStep]=useState(initialStatus==='PENDING'?'pending':initialStatus==='NEW'?'form':'welcome'),[name,setName]=useState(''),[branch,setBranch]=useState(''),[manager,setManager]=useState(''),[role,setRole]=useState('STAFF'),[managers,setManagers]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const googleButton=useRef(null);
  useEffect(()=>{if(step!=='form'||role!=='STAFF')return;let active=true;gateway.managers().then(list=>{if(active)setManagers(list);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[step,role,gateway]);
  useEffect(()=>{if(step!=='welcome')return;let active=true;renderGoogleSignIn(googleButton.current,clientId,credential=>{if(active)signIn(credential);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[step,clientId,gateway]);
