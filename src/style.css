@@ -7,3 +7,5 @@
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
 .history-filters{display:flex;align-items:center;gap:12px;flex-wrap:wrap}.history-staff{display:flex;align-items:center;gap:8px;font-size:12px;color:#687795}.history-staff select{border:1px solid #dce4f2;border-radius:10px;background:#fff;color:#52627e;padding:10px 12px;font:inherit;max-width:220px}
+
+.hero{display:block;min-height:0}.hero-main{max-width:720px}
