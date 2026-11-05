@@ -1,45 +1,37 @@
-// Credentials are kept in this tab only and verified by the server on restoration.
-// The transport must use HTTPS and authenticate the server response.
+// Browser-generated session secrets are checked against hashes stored on the server.
 export function createRegistrationGateway(transport) {
- let credential = null;
- const storageKey = 'vivo-google-credential';
- const readStored = () => { try { return window.sessionStorage?.getItem(storageKey) || null; } catch (_) { return null; } };
- const store = value => { try { if (value) window.sessionStorage?.setItem(storageKey,value); else window.sessionStorage?.removeItem(storageKey); } catch (_) { /* Storage may be unavailable. */ } };
- const request = (action, payload={}) => {
-  if (!credential) return Promise.reject(new Error('กรุณาเข้าสู่ระบบด้วย Google อีกครั้ง'));
-  try {
-   const part=credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
-   const claims=JSON.parse(window.atob(part));
-   if (Number.isFinite(claims.exp) && claims.exp*1000<=Date.now()) {
-    credential=null; store(null);
-    return Promise.reject(new Error('การเข้าสู่ระบบหมดอายุ กรุณาเข้าสู่ระบบด้วย Google อีกครั้ง'));
-   }
-  } catch (_) { /* The server remains responsible for token validation. */ }
-  return transport({credential, action, payload});
- };
+ let credential=null, restoring=null, generation=0, onInvalid=()=>{};
+ const key='vivo-session-v1', cacheKey='vivo-dashboard-cache-v1';
+ const read=(k)=>{try{return window.localStorage?.getItem(k)||null;}catch(_){return null;}};
+ const write=(k,v)=>{try{if(v===null)window.localStorage?.removeItem(k);else window.localStorage?.setItem(k,v);}catch(_){}};
+ const clear=()=>{generation++;credential=null;restoring=null;write(key,null);write(cacheKey,null);try{window.sessionStorage?.removeItem('vivo-google-credential');}catch(_){}};
+ const saved=()=>{try{const value=JSON.parse(read(key)||'null');return value&&/^vivo1\.[A-Za-z0-9_-]{43}$/.test(value.token)?value:null;}catch(_){return null;}};
+ const send=(action,payload={})=>credential?transport({credential,action,payload}):Promise.reject(new Error('กรุณาเข้าสู่ระบบด้วย Google อีกครั้ง'));
+ const request=async(action,payload={})=>{if(restoring)await restoring;try{return await send(action,payload);}catch(error){if(error.code==='SESSION_INVALID'){clear();onInvalid();}throw error;}};
+ const start=async()=>{const bytes=new Uint8Array(32);window.crypto.getRandomValues(bytes);const secret='vivo1.'+window.btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');await send('startSession',{secret});credential=secret;write(key,JSON.stringify({token:secret}));};
+ const cache=data=>{if(saved()&&data?.actor?.user_id)write(cacheKey,JSON.stringify({month:data.month,data}));};
  return {
-  async signIn(value) {
-   if (typeof value !== 'string' || !value) throw new Error('ไม่สามารถยืนยันบัญชี Google ได้');
-   credential = value;
-   try { const result=await request('identityStatus'); store(credential); return result; }
-   catch (error) { credential = null; store(null); throw error; }
+  onSessionInvalid(callback){onInvalid=callback;},
+  cached(month){const session=saved();if(!session){clear();return null;}try{const item=JSON.parse(read(cacheKey)||'null');return item?.month===month&&item.data?.actor?.user_id?item.data:null;}catch(_){return null;}},
+  cache,
+  async signIn(value){
+   if(typeof value!=='string'||!value)throw Error('ไม่สามารถยืนยันบัญชี Google ได้');
+   clear();credential=value;
+   try{
+    const result=await send('identityStatus');
+    if(result.status==='ACTIVE'){
+     await start();
+    }
+    return result;
+   }catch(error){clear();throw error;}
   },
-  async restore(month) {
-   credential=readStored();
-   if (!credential) return null;
-   // Bootstrap both verifies access and loads the first screen in one request.
-   try { return {status:'ACTIVE',data:await request('bootstrap',{month})}; }
-   catch (error) {
-    if (!credential) throw error;
-    const identity=await request('identityStatus');
-    if (identity.status==='ACTIVE') throw error;
-    return identity;
-   }
+  async restore(month){
+   const session=saved();if(!session){clear();return null;}credential=session.token;
+   const current=generation,work=send('bootstrap',{month});restoring=work;
+   try{const data=await work;if(current!==generation)return null;cache(data);return {status:'ACTIVE',data};}
+   catch(error){if(current!==generation)return null;if(error.code==='SESSION_INVALID')clear();throw error;}finally{if(current===generation)restoring=null;}
   },
-  status: () => request('identityStatus'),
-  managers: () => request('registrationManagers'),
-  register: payload => request('register', payload),
-  call: (action,payload) => request(action,payload),
-  signOut() { credential = null; store(null); window.google?.accounts?.id?.disableAutoSelect(); }
+  async status(){const result=await request('identityStatus');if(result.status==='ACTIVE'&&!credential.startsWith('vivo1.'))await start();return result;},managers:()=>request('registrationManagers'),register:p=>request('register',p),call:(action,payload)=>request(action,payload),
+  signOut(){const previous=credential;if(previous?.startsWith('vivo1.'))transport({credential:previous,action:'endSession',payload:{}}).catch(()=>{});clear();window.google?.accounts?.id?.disableAutoSelect();}
  };
 }

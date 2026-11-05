@@ -30,7 +30,7 @@ export function createBridgeTransport({url, sandboxOrigin, hostWindow=window, ho
   const item=pending.get(event.data.id); if(!item)return;
   pending.delete(event.data.id);hostWindow.clearTimeout(item.timer);
   const result=event.data.result;
-  if(result?.ok===true)item.resolve(result.data);else item.reject(new Error(result?.error||'ไม่สามารถทำรายการได้'));
+  if(result?.ok===true)item.resolve(result.data);else {const error=new Error(result?.error||'ไม่สามารถทำรายการได้');error.code=result?.code;item.reject(error);}
  }
  hostWindow.addEventListener('message',receive);
  frame=hostDocument.createElement('iframe');frame.hidden=true;frame.title='การเชื่อมต่อระบบ';frame.src=url;hostDocument.body.appendChild(frame);

@@ -1,48 +1,16 @@
-const {test} = require('node:test');
-const assert = require('node:assert/strict');
-
-test('registration gateway keeps credentials in memory and clears them on failure or sign-out',async()=>{
- const {createRegistrationGateway} = await import('../src/registrationGateway.js');
- const calls=[];
- global.window={};
- const gateway=createRegistrationGateway(async request=>{calls.push(request);if(request.credential==='bad')throw Error('invalid');return {status:'ACTIVE'};});
- await assert.rejects(gateway.status(),/เข้าสู่ระบบ/);
- await assert.rejects(gateway.signIn('bad'),/invalid/);
- await assert.rejects(gateway.status(),/เข้าสู่ระบบ/);
- await gateway.signIn('valid');
- await gateway.register({name:'Tester'});
- assert.equal(calls[2].credential,'valid');
- assert.equal(calls[2].action,'register');
- gateway.signOut();
- await assert.rejects(gateway.status(),/เข้าสู่ระบบ/);
- delete global.window;
+const {test}=require('node:test');const assert=require('node:assert/strict');const crypto=require('node:crypto');
+function browser(){const data=new Map();return {data,window:{localStorage:{getItem:k=>data.get(k)||null,setItem:(k,v)=>data.set(k,v),removeItem:k=>data.delete(k)},sessionStorage:{removeItem(){}},crypto:crypto.webcrypto,btoa:global.btoa,google:{accounts:{id:{disableAutoSelect(){}}}}}};}
+test('active Google login creates a random durable session and restores through the server',async()=>{
+ const {createRegistrationGateway}=await import('../src/registrationGateway.js'),b=browser();global.window=b.window;let requests=[];
+ const transport=async r=>{requests.push(r);if(r.action==='identityStatus')return {status:'ACTIVE'};if(r.action==='startSession')return {expires_at:new Date(Date.now()+60000).toISOString()};if(r.action==='bootstrap')return {month:'2026-11',actor:{user_id:'u'}};return {done:true};};
+ const first=createRegistrationGateway(transport);await first.signIn('google-token');assert.match(requests[1].payload.secret,/^vivo1\.[\w-]{43}$/);assert.equal(b.data.has('vivo-session-v1'),true);
+ const next=createRegistrationGateway(transport);assert.equal((await next.restore('2026-11')).data.actor.user_id,'u');assert.equal(next.cached('2026-11').actor.user_id,'u');
+ next.signOut();assert.equal(b.data.size,0);assert.equal(requests.at(-1).action,'endSession');delete global.window;
 });
+test('unapproved account does not get a persistent session',async()=>{const {createRegistrationGateway}=await import('../src/registrationGateway.js'),b=browser();global.window=b.window;const g=createRegistrationGateway(async()=>({status:'PENDING'}));assert.equal((await g.signIn('google')).status,'PENDING');assert.equal(b.data.size,0);delete global.window;});
+test('failed verification clears the cached identity and data',async()=>{const {createRegistrationGateway}=await import('../src/registrationGateway.js'),b=browser();global.window=b.window;b.data.set('vivo-session-v1',JSON.stringify({token:'vivo1.'+'a'.repeat(43),expires_at:new Date(Date.now()+60000).toISOString()}));b.data.set('vivo-dashboard-cache-v1',JSON.stringify({month:'2026-11',data:{actor:{user_id:'u'}}}));const g=createRegistrationGateway(async()=>{const error=Error('denied');error.code='SESSION_INVALID';throw error;});assert.ok(g.cached('2026-11'));await assert.rejects(g.restore('2026-11'));assert.equal(b.data.size,0);delete global.window;});
+test('sign out during verification cannot restore cached session',async()=>{const {createRegistrationGateway}=await import('../src/registrationGateway.js'),b=browser();global.window=b.window;b.data.set('vivo-session-v1',JSON.stringify({token:'vivo1.'+'a'.repeat(43),expires_at:new Date(Date.now()+60000).toISOString()}));let resolve;const g=createRegistrationGateway(r=>r.action==='endSession'?Promise.resolve({}):new Promise(r=>resolve=r));const wait=g.restore('2026-11');g.signOut();resolve({actor:{user_id:'u'},month:'2026-11'});assert.equal(await wait,null);assert.equal(b.data.size,0);delete global.window;});
 
-test('expired credential is rejected before any backend call',async()=>{
- const {createRegistrationGateway}=await import('../src/registrationGateway.js');
- global.window={atob:global.atob};let calls=0;
- const gateway=createRegistrationGateway(async()=>{calls++;return {status:'ACTIVE'};});
- const payload=Buffer.from(JSON.stringify({exp:1})).toString('base64url');
- await assert.rejects(gateway.signIn(`e.${payload}.s`),/หมดอายุ/);
- assert.equal(calls,0);delete global.window;
-});
+test('temporary connection failures preserve the remembered session for retry',async()=>{const {createRegistrationGateway}=await import('../src/registrationGateway.js'),b=browser();global.window=b.window;b.data.set('vivo-session-v1',JSON.stringify({token:'vivo1.'+'a'.repeat(43),expires_at:new Date(Date.now()+60000).toISOString()}));const g=createRegistrationGateway(async()=>{throw Error('offline')});await assert.rejects(g.restore('2026-11'));assert.equal(b.data.has('vivo-session-v1'),true);delete global.window;});
 
-test('restores a verified session after refresh and clears it on sign-out',async()=>{
- const {createRegistrationGateway}=await import('../src/registrationGateway.js');
- const values=new Map();
- global.window={atob:global.atob,sessionStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)}};
- const token=`e.${Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')}.s`;
- let calls=0;const transport=async ({credential,action})=>{assert.equal(credential,token);calls++;return action==='bootstrap'?{actor:{role:'STAFF'},month:'2026-11'}:{status:'ACTIVE'};};
- const first=createRegistrationGateway(transport);await first.signIn(token);
- const refreshed=createRegistrationGateway(transport);const restored=await refreshed.restore('2026-11');assert.equal(restored.status,'ACTIVE');assert.equal(restored.data.month,'2026-11');assert.equal(calls,2);
- refreshed.signOut();assert.equal(await createRegistrationGateway(transport).restore(),null);
- delete global.window;
-});
-
-test('expired saved session is removed without contacting server',async()=>{
- const {createRegistrationGateway}=await import('../src/registrationGateway.js');
- const values=new Map([['vivo-google-credential',`e.${Buffer.from(JSON.stringify({exp:1})).toString('base64url')}.s`]]);
- global.window={atob:global.atob,sessionStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)}};
- let calls=0;const gateway=createRegistrationGateway(async()=>{calls++;});
- await assert.rejects(gateway.restore(),/หมดอายุ/);assert.equal(calls,0);assert.equal(values.size,0);delete global.window;
-});
+test('session revoked during ordinary use clears cached data and notifies the app',async()=>{const {createRegistrationGateway}=await import('../src/registrationGateway.js'),b=browser();global.window=b.window;b.data.set('vivo-session-v1',JSON.stringify({token:'vivo1.'+'a'.repeat(43),expires_at:new Date(Date.now()+60000).toISOString()}));let calls=0,invalid=false;const g=createRegistrationGateway(async()=>{if(!calls++)return {month:'2026-11',actor:{user_id:'u'}};const error=Error('denied');error.code='SESSION_INVALID';throw error;});await g.restore('2026-11');g.onSessionInvalid(()=>invalid=true);await assert.rejects(g.call('bootstrap',{}));assert.ok(invalid);assert.equal(b.data.size,0);delete global.window;});

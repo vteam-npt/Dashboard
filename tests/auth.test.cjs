@@ -25,3 +25,14 @@ test('non-Google-hosted email cannot claim a pre-provisioned account',()=>{
   assert.throws(()=>ctx.actorForIdentity_(null,{sub:'subject',email:'owner@example.com'}));
   assert.equal(ctx.actorForIdentity_(null,{sub:'subject',email:'owner@example.com',hosted_domain:'example.com'}).user_id,'admin');
 });
+
+test('sessions store hashes, enforce revoked users, and revoke on logout',()=>{
+ const crypto=require('node:crypto'),{ctx,users}=fixture();const sessions=[];
+ ctx.Utilities={DigestAlgorithm:{SHA_256:'SHA_256'},Charset:{UTF_8:'UTF_8'},computeDigest:(_,value)=>Array.from(crypto.createHash('sha256').update(value).digest())};
+ ctx.sessionSheet_=()=>({});ctx.rows_=(_,name)=>name==='Sessions'?sessions:users;ctx.save_=(_,name,row)=>{if(name==='Sessions'){const i=sessions.findIndex(s=>s.session_hash===row.session_hash);if(i<0)sessions.push(row);else sessions[i]=row;}return row;};
+ users[0].google_sub='subject';const token='vivo1.'+'a'.repeat(43),now=new Date('2026-11-05T00:00:00Z');
+ const created=ctx.startSession_(null,users[0],token,now);assert.equal(sessions.length,1);assert.notEqual(sessions[0].session_hash,token);assert.equal(ctx.sessionActor_(null,token,now).user_id,'admin');
+ assert.throws(()=>ctx.sessionActor_(null,'vivo1.'+'b'.repeat(43),now));assert.equal(ctx.sessionActor_(null,token,new Date('2040-01-01T00:00:00Z')).user_id,'admin');
+ users[0].active=false;assert.throws(()=>ctx.sessionActor_(null,token,now));users[0].active=true;
+ ctx.endSession_(null,token);assert.throws(()=>ctx.sessionActor_(null,token,now));
+});
