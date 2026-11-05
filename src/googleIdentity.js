@@ -1,0 +1,29 @@
+let scriptPromise;
+
+function loadGoogleIdentity() {
+ if (window.google?.accounts?.id) return Promise.resolve();
+ if (!scriptPromise) {
+  if (window.location.protocol==='http:' && window.location.hostname==='localhost' && !document.querySelector('meta[name="referrer"]')) {
+   const meta=document.createElement('meta');meta.name='referrer';meta.content='no-referrer-when-downgrade';document.head.appendChild(meta);
+  }
+  scriptPromise = new Promise((resolve,reject) => {
+   const script=document.createElement('script');
+   script.src='https://accounts.google.com/gsi/client';
+   script.async=true;
+   script.onload=()=>window.google?.accounts?.id ? resolve() : reject(new Error('ไม่สามารถโหลด Google Login ได้'));
+   script.onerror=()=>reject(new Error('ไม่สามารถโหลด Google Login ได้'));
+   document.head.appendChild(script);
+  }).catch(error=>{scriptPromise=null;throw error;});
+ }
+ return scriptPromise;
+}
+
+export async function renderGoogleSignIn(element, clientId, onCredential) {
+ if (!clientId || !element) throw new Error('ยังไม่ได้ตั้งค่า Google Login');
+ await loadGoogleIdentity();
+ window.google.accounts.id.initialize({client_id:clientId,callback:response=>{
+  if(typeof response?.credential==='string'&&response.credential) onCredential(response.credential);
+ }});
+ element.replaceChildren();
+ window.google.accounts.id.renderButton(element,{type:'standard',theme:'outline',size:'large',text:'continue_with',shape:'pill',locale:'th'});
+}

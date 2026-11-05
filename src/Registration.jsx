@@ -1,0 +1,19 @@
+import React, {useEffect, useRef, useState} from 'react';
+import {LoaderCircle} from 'lucide-react';
+import vivoLogo from '../Vivo-Logo-500x281.png';
+import './registration.css';
+import {renderGoogleSignIn} from './googleIdentity';
+
+/** Auth gateway must verify Google credentials on the server. No local identity simulation. */
+export function Registration({gateway, clientId, onAuthenticated}) {
+ const [step,setStep]=useState('welcome'),[name,setName]=useState(''),[branch,setBranch]=useState(''),[manager,setManager]=useState(''),[role,setRole]=useState('STAFF'),[managers,setManagers]=useState([]),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const googleButton=useRef(null);
+ useEffect(()=>{if(step!=='form'||role!=='STAFF')return;let active=true;gateway.managers().then(list=>{if(active)setManagers(list);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[step,role,gateway]);
+ useEffect(()=>{if(step!=='welcome')return;let active=true;renderGoogleSignIn(googleButton.current,clientId,credential=>{if(active)signIn(credential);}).catch(e=>{if(active)setError(e.message);});return()=>{active=false;};},[step,clientId,gateway]);
+ async function signIn(credential){setBusy(true);setError('');try{const result=await gateway.signIn(credential);if(result.status==='ACTIVE')onAuthenticated(result);else if(result.status==='PENDING')setStep('pending');else setStep('form');}catch(e){setError(e.message);}finally{setBusy(false);}}
+ async function checkStatus(){setBusy(true);setError('');try{const result=await gateway.status();if(result.status==='ACTIVE')onAuthenticated(result);else if(result.status==='NEW')setStep('form');}catch(e){setError(e.message);}finally{setBusy(false);}}
+ async function submit(e){e.preventDefault();setBusy(true);setError('');try{await gateway.register({name:name.trim(),branch_name:branch.trim(),manager_id:role==='STAFF'?manager:'',requested_role:role});setStep('pending');}catch(e){setError(e.message);}finally{setBusy(false);}}
+ return <div className="registration-shell"><section className="registration-card"><img src={vivoLogo} alt="vivo"/><h1>{step==='form'?'สมัครใช้งาน':step==='pending'?'รอการอนุมัติ':'ระบบติดตามยอดขาย'}</h1>{step==='welcome'&&<><p>เข้าสู่ระบบหรือสมัครใช้งานด้วยบัญชี Google</p><div ref={googleButton} aria-label="เข้าสู่ระบบด้วย Google"/>{busy&&<LoaderCircle className="spin" size={18}/>}</>}
+ {step==='form'&&<form onSubmit={submit}><p>กรุณาระบุข้อมูลเพื่อส่งคำขอสมัคร</p><label>บทบาท<select value={role} onChange={e=>setRole(e.target.value)}><option value="STAFF">พนักงาน</option><option value="MANAGER">หัวหน้างาน</option></select></label><label>ชื่อ–นามสกุล<input required maxLength={80} value={name} onChange={e=>setName(e.target.value)}/></label><label>หน้าร้าน<input required maxLength={80} value={branch} onChange={e=>setBranch(e.target.value)}/></label>{role==='STAFF'&&<label>หัวหน้า<select required value={manager} onChange={e=>setManager(e.target.value)}><option value="">เลือกหัวหน้า</option>{managers.map(m=><option key={m.id} value={m.id}>{m.name}</option>)}</select></label>}<button className="registration-primary" disabled={busy||(role==='STAFF'&&!managers.length)}>{busy?'กำลังส่งคำขอ':'ส่งคำขอสมัคร'}</button>{role==='STAFF'&&!managers.length&&<p>ยังไม่มีรายชื่อหัวหน้า กรุณาติดต่อผู้ดูแลระบบ</p>}{role==='MANAGER'&&<p>คำขอหัวหน้างานจะส่งให้ผู้ดูแลระบบพิจารณา</p>}</form>}
+ {step==='pending'&&<><p>ส่งคำขอสมัครแล้ว กรุณารอการพิจารณาอนุมัติ</p><button className="registration-secondary" onClick={checkStatus} disabled={busy}>ตรวจสอบสถานะ</button></>}{error&&<p className="registration-error" role="alert">{error}</p>}<p><a href="./privacy.html" target="_blank" rel="noreferrer">ข้อมูลส่วนบุคคล</a></p></section></div>;
+}
