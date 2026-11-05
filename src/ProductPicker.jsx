@@ -1,5 +1,6 @@
 import React, {useMemo, useState} from 'react';
 import {Search, Check, ChevronRight} from 'lucide-react';
+import {formatVariant} from './formatVariant';
 
 // Stock Handoff uses a hierarchy and search to avoid a long flat model list.
 export function ProductPicker({products, value, onChange}) {
@@ -24,7 +25,7 @@ export function ProductPicker({products, value, onChange}) {
     <div className="series-tabs" role="group" aria-label="เลือกซีรีส์">{seriesList.map(s => <button type="button" key={s} aria-pressed={series===s} className={series===s?'selected':''} onClick={() => {setSeries(s);setModel('');onChange(null);}}>{s} {s!=='Other'&&<small>Series</small>}</button>)}</div>
     <div className="picker-step"><span>2</span> เลือกรุ่น</div>
     {models.length ? <div className="model-grid">{models.map(name => <button type="button" key={name} aria-pressed={model===name} className={model===name?'selected':''} onClick={() => selectModel(name)}><span>{name}</span><ChevronRight size={16}/></button>)}</div> : <p className="picker-empty">ไม่พบรุ่นในซีรีส์นี้ ลองค้นหาชื่ออื่นหรือเลือกซีรีส์อื่น</p>}
-    {model && <><div className="picker-step"><span>3</span> เลือกความจุ</div><div className="variant-grid">{variants.map(p => <button type="button" key={p.product_id} aria-pressed={value===p.product_id} className={value===p.product_id?'selected':''} onClick={() => onChange(p)}><span>{p.ram||p.storage?[p.ram,p.storage].filter(Boolean).join(' / ')+' GB':'เลือกสินค้า'}</span>{value===p.product_id&&<Check size={16}/>}</button>)}</div></>}
-    <div className="picker-current">{selected ? <>เลือกแล้ว <b>{selected.model} · {selected.ram}/{selected.storage} GB</b></> : 'กรุณาเลือกรุ่นและความจุ'}</div>
+    {model && <><div className="picker-step"><span>3</span> เลือกความจุ</div><div className="variant-grid">{variants.map(p => <button type="button" key={p.product_id} aria-pressed={value===p.product_id} className={value===p.product_id?'selected':''} onClick={() => onChange(p)}><span>{formatVariant(p)||'เลือกสินค้า'}</span>{value===p.product_id&&<Check size={16}/>}</button>)}</div></>}
+    <div className="picker-current">{selected ? <>เลือกแล้ว <b>{selected.model} · {formatVariant(selected)}</b></> : 'กรุณาเลือกรุ่นและความจุ'}</div>
   </div>;
 }
