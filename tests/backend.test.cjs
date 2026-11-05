@@ -34,3 +34,5 @@ test('month is saved as plain text so Sheets does not convert it into a date',()
  const ctx=vm.createContext({});vm.runInContext(fs.readFileSync('apps-script/Backend.gs','utf8'),ctx);
  ctx.save_({getSheetByName:()=>sheet},'Targets',{target_id:'x',user_id:'a',month:'2026-11',amount:1});assert.equal(written[0][2],"'2026-11");
 });
+
+test('Other products can omit RAM and storage and retain clean sale names',()=>{const f=fixture();const p=f.run(f.admin,'addProduct',{series:'Other',model:'ACC Charger',ram:'',storage:'',standard_price:500,commission:0});assert.equal(p.ram,'');assert.equal(p.storage,'');const sale=f.run(f.staff,'addSale',{...f.sale,request_id:'other-sale',product_id:p.product_id,sold_at:'2026-11-05T12:00:00+07:00'});assert.equal(sale.product_name,'ACC Charger');assert.equal(sale.base_commission,0);});

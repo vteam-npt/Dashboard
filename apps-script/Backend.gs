@@ -100,7 +100,7 @@ function dispatch_(db, actor, action, p, now) {
     assert_(prices.length,'ยังไม่มีอัตราคอมมิชชันสำหรับวันขายนี้');
     const campaigns=rows_(db,'Campaigns').filter(c=>active_(c) && c.family_id===user.family_id && c.product_id===product.product_id && new Date(c.starts_at)<=sold && sold<new Date(c.ends_at));
     assert_(campaigns.length<=1,'กิจกรรมซ้อนกัน กรุณาให้หัวหน้าตรวจสอบ');
-    const sale={sale_id:Utilities.getUuid(),request_id:requestId,user_id:user.user_id,family_id:user.family_id,branch_id:user.branch_id,product_id:product.product_id,product_name:product.model+' '+product.ram+'/'+product.storage,price:money_(p.price),payment_method:p.payment_method,sold_at:sold.toISOString(),recorded_at:now.toISOString(),base_commission:money_(prices[0].amount,true),incentive:campaigns.length?money_(campaigns[0].amount,true):0,campaign_ids:campaigns.map(c=>c.campaign_id).join(','),status:day_(sold)<day_(now)?'PENDING':'APPROVED',created_by:actor.user_id};
+    const sale={sale_id:Utilities.getUuid(),request_id:requestId,user_id:user.user_id,family_id:user.family_id,branch_id:user.branch_id,product_id:product.product_id,product_name:product.model+(product.ram||product.storage?' '+[product.ram,product.storage].filter(Boolean).join('/'):''),price:money_(p.price),payment_method:p.payment_method,sold_at:sold.toISOString(),recorded_at:now.toISOString(),base_commission:money_(prices[0].amount,true),incentive:campaigns.length?money_(campaigns[0].amount,true):0,campaign_ids:campaigns.map(c=>c.campaign_id).join(','),status:day_(sold)<day_(now)?'PENDING':'APPROVED',created_by:actor.user_id};
     save_(db,'Sales',sale); audit_(db,actor,'ADD_SALE',sale.sale_id); return sale;
   }
   if (['deleteSale','approveSale','rejectSale'].includes(action)) {
@@ -142,8 +142,8 @@ function dispatch_(db, actor, action, p, now) {
   }
   if(action==='addFamily') {admin_(actor);const f={family_id:Utilities.getUuid(),name:text_(p.name,80),active:true};save_(db,'Families',f);audit_(db,actor,'ADD_FAMILY',f.family_id);return f;}
   if(action==='addProduct') {
-    admin_(actor);assert_(['Y','V','X'].includes(p.series),'ซีรีส์ไม่ถูกต้อง');
-    const item={product_id:Utilities.getUuid(),series:p.series,model:text_(p.model,80),ram:text_(String(p.ram),10),storage:text_(String(p.storage),10),standard_price:money_(p.standard_price),active:true,is_demo:false};
+    admin_(actor);assert_(['Y','V','X','Other'].includes(p.series),'ซีรีส์ไม่ถูกต้อง');
+    const item={product_id:Utilities.getUuid(),series:p.series,model:text_(p.model,80),ram:p.series==='Other' && !String(p.ram||'').trim()?'':text_(String(p.ram),10),storage:p.series==='Other' && !String(p.storage||'').trim()?'':text_(String(p.storage),10),standard_price:money_(p.standard_price),active:true,is_demo:false};
     const amount=money_(p.commission,true);save_(db,'Products',item);save_(db,'Commissions',{rule_id:Utilities.getUuid(),product_id:item.product_id,amount,effective_from:now.toISOString(),effective_to:''});audit_(db,actor,'ADD_PRODUCT',item.product_id);return item;
   }
   if(action==='archiveProduct') {admin_(actor);const item=rows_(db,'Products').find(x=>x.product_id===p.product_id);assert_(item,'ไม่พบสินค้า');item.active=false;save_(db,'Products',item);audit_(db,actor,'ARCHIVE_PRODUCT',item.product_id);return item;}
