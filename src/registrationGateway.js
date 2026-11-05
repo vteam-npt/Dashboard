@@ -24,10 +24,17 @@ export function createRegistrationGateway(transport) {
    try { const result=await request('identityStatus'); store(credential); return result; }
    catch (error) { credential = null; store(null); throw error; }
   },
-  async restore() {
+  async restore(month) {
    credential=readStored();
    if (!credential) return null;
-   return request('identityStatus');
+   // Bootstrap both verifies access and loads the first screen in one request.
+   try { return {status:'ACTIVE',data:await request('bootstrap',{month})}; }
+   catch (error) {
+    if (!credential) throw error;
+    const identity=await request('identityStatus');
+    if (identity.status==='ACTIVE') throw error;
+    return identity;
+   }
   },
   status: () => request('identityStatus'),
   managers: () => request('registrationManagers'),

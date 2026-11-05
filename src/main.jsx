@@ -21,15 +21,15 @@ class VisualBoundary extends Component{state={failed:false};static getDerivedSta
 function Background(){const [moving,setMoving]=useState(!matchMedia('(prefers-reduced-motion: reduce)').matches);useEffect(()=>{const change=()=>setMoving(!document.hidden&&!matchMedia('(prefers-reduced-motion: reduce)').matches);document.addEventListener('visibilitychange',change);return()=>document.removeEventListener('visibilitychange',change);},[]);return <div id="gradient" aria-hidden="true"><VisualBoundary><ShaderGradientCanvas pixelDensity={1} preserveDrawingBuffer powerPreference="low-power" style={{width:'100%',height:'100%'}}><ShaderGradient control="props" type="plane" animate={moving?'on':'off'} uSpeed={.08} uStrength={1.7} uDensity={1.3} uFrequency={4} color1="#e9edff" color2="#9eaeef" color3="#f4d9e9" cDistance={3.8} cPolarAngle={110} cAzimuthAngle={180} rotationX={0} rotationY={0} rotationZ={35} lightType="3d" brightness={1.15} grain="off"/></ShaderGradientCanvas></VisualBoundary></div>}
 const FormContext=createContext(null);
 function Field({label,name,type='text',required=true,children,...props}){const {form,change}=useContext(FormContext);return <label className="field"><span>{label}</span>{children||<input name={name} type={type} required={required} value={form[name]??''} onChange={e=>change(name,e.target.value)} {...props}/>}</label>}
-function App({onSignOut}){
- const [data,setData]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[page,setPage]=useState('salehome'),[modal,setModal]=useState(null),[toast,setToast]=useState(''),[selectedMonth,setMonth]=useState(bangkok().slice(0,7)),[filter,setFilter]=useState(''),[staffFilter,setStaffFilter]=useState(''),[form,setForm]=useState({}),[requestId,setRequestId]=useState('');
+function App({onSignOut,initialData}){
+ const [data,setData]=useState(initialData||null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[page,setPage]=useState('salehome'),[modal,setModal]=useState(null),[toast,setToast]=useState(''),[selectedMonth,setMonth]=useState(bangkok().slice(0,7)),[filter,setFilter]=useState(''),[staffFilter,setStaffFilter]=useState(''),[form,setForm]=useState({}),[requestId,setRequestId]=useState('');
  const refresh=async()=>{setError('');try{const next=live?await call('bootstrap',{month:selectedMonth}):{...preview,month:selectedMonth};next.families=next.families.map(f=>({...f,name:String(f.name).replace(/^Demo Family ([123])$/i,'ทีมตัวอย่าง $1')}));setData(next);}catch(e){setError(e.message);}};
- useEffect(()=>{refresh();},[selectedMonth]);
+ useEffect(()=>{if(!initialData||selectedMonth!==initialData.month)refresh();},[selectedMonth]);
  useEffect(()=>{if(!live)return;const timer=setInterval(()=>{if(!document.hidden)refresh();},60000);return()=>clearInterval(timer);},[selectedMonth]);
  useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(''),5000);return()=>clearTimeout(timer);},[toast]);
  const change=(k,v)=>setForm(f=>({...f,[k]:v}));
  const open=(kind,initial={})=>{setForm(initial);setError('');setRequestId(crypto.randomUUID());setModal(kind);};
- const mutate=async(action,payload)=>{setBusy(true);setError('');try{await call(action,payload);setModal(null);setToast('บันทึกข้อมูลสำเร็จ');await refresh();return true;}catch(e){setError(e.message);return false;}finally{setBusy(false);}};
+ const mutate=async(action,payload)=>{setBusy(true);setError('');try{const result=await call(action,payload);setModal(null);setToast('บันทึกข้อมูลสำเร็จ');if(['addSale','deleteSale','approveSale','rejectSale'].includes(action)&&result?.sale_id)setData(current=>{if(!current)return current;const sales=current.sales.filter(s=>s.sale_id!==result.sale_id);return {...current,sales:[...sales,result]};});refresh();return true;}catch(e){setError(e.message);return false;}finally{setBusy(false);}};
  const submit=e=>{e.preventDefault();if(modal==='sale'&&!form.product_id){setError('กรุณาเลือกรุ่นและความจุ');return;}const actions={sale:'addSale',target:'setTarget',campaign:'addCampaign',user:'addUser',family:'addFamily',product:'addProduct'};let p={...form};if(modal==='sale'){p.sold_at=form.sold_at+':00+07:00';p.request_id=requestId;}if(modal==='campaign'){p.starts_at=form.starts_at+':00+07:00';p.ends_at=form.ends_at+':00+07:00';}mutate(actions[modal],p);};
  const exportCsv=()=>{const rows=[['วันที่ขาย','พนักงาน','รุ่น','ราคา','ช่องทาง','คอมพื้นฐาน','อัดฉีด','สถานะ'],...data.sales.map(s=>[s.sold_at,data.users.find(u=>u.user_id===s.user_id)?.name||s.user_id,s.product_name,s.price,payment[s.payment_method],s.base_commission,s.incentive,status[s.status]])];const csv='\uFEFF'+rows.map(row=>row.map(v=>'"'+String(v??'').replace(/^[=+@\-]/,"'$&").replaceAll('"','""')+'"').join(',')).join('\r\n');const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));const a=document.createElement('a');a.href=url;a.download=`vivo-${data.month}.csv`;a.click();URL.revokeObjectURL(url);};
  const staff=data?.actor.role==='STAFF',admin=data?.actor.role==='ADMIN',manager=data?.actor.role==='MANAGER';
@@ -83,7 +83,7 @@ function App({onSignOut}){
 function Stat({label,value,unit,note,icon:Icon,purple}){return <div className={'stat panel '+(purple?'purple':'')}><div className="stat-top"><span>{label}</span><span className="icon-tile"><Icon size={19}/></span></div><h2>{value}<small>{unit}</small></h2><p>{note}</p></div>}
 function Empty({title,text}){return <div className="empty"><div className="empty-icon"><Smartphone size={27}/></div><h3>{title}</h3><p>{text}</p></div>}
 function Root(){
- const [authenticated,setAuthenticated]=useState(false),[restoring,setRestoring]=useState(true),[restoredStatus,setRestoredStatus]=useState(null),[restoreError,setRestoreError]=useState('');
+ const [authenticated,setAuthenticated]=useState(false),[restoring,setRestoring]=useState(true),[restoredStatus,setRestoredStatus]=useState(null),[restoreError,setRestoreError]=useState(''),[initialData,setInitialData]=useState(null);
  const [connection]=useState(()=>{
   if(!configured)return null;
   if(!live)return {error:'ระบบยังตั้งค่าไม่ครบ กรุณาติดต่อผู้ดูแล'};
@@ -94,13 +94,13 @@ function Root(){
   }catch(_){return {error:'ระบบเชื่อมต่อไม่พร้อมใช้งาน กรุณาติดต่อผู้ดูแล'};}
  });
  useEffect(()=>()=>{connection?.transport?.close();setGateway(null);},[connection]);
- const restore=async()=>{setRestoring(true);setRestoreError('');try{const result=await connection.gateway.restore();if(result?.status==='ACTIVE')setAuthenticated(true);else setRestoredStatus(result?.status||null);}catch(e){setRestoreError(e.message);}finally{setRestoring(false);}};
+ const restore=async()=>{setRestoring(true);setRestoreError('');try{const result=await connection.gateway.restore(bangkok().slice(0,7));if(result?.status==='ACTIVE'){setInitialData(result.data);setAuthenticated(true);}else setRestoredStatus(result?.status||null);}catch(e){setRestoreError(e.message);}finally{setRestoring(false);}};
  useEffect(()=>{if(configured&&connection?.gateway)restore();else setRestoring(false);},[connection]);
  if(!configured)return <App/>;
  if(connection?.error)return <div className="registration-shell"><section className="registration-card"><h1>ไม่สามารถเข้าใช้งานได้</h1><p>{connection.error}</p></section></div>;
  if(restoring)return <div className="registration-shell"><section className="registration-card"><LoaderCircle className="spin"/><p>กำลังตรวจสอบการเข้าสู่ระบบ</p></section></div>;
  if(restoreError)return <div className="registration-shell"><section className="registration-card"><h1>ไม่สามารถตรวจสอบการเข้าสู่ระบบ</h1><p>{restoreError}</p><button className="registration-primary" onClick={restore}>ลองอีกครั้ง</button><p><button className="registration-secondary" onClick={()=>{connection.gateway.signOut();setRestoreError('');setRestoredStatus(null);}}>เข้าสู่ระบบใหม่</button></p></section></div>;
  if(!authenticated)return <Registration clientId={productionConfig.clientId} gateway={connection.gateway} initialStatus={restoredStatus} onAuthenticated={()=>setAuthenticated(true)}/>;
- return <App onSignOut={()=>{connection.gateway.signOut();setRestoredStatus(null);setAuthenticated(false);}}/>;
+ return <App initialData={initialData} onSignOut={()=>{connection.gateway.signOut();setInitialData(null);setRestoredStatus(null);setAuthenticated(false);}}/>;
 }
 createRoot(document.getElementById('root')).render(<Root/>);

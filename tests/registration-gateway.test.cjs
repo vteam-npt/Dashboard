@@ -32,9 +32,9 @@ test('restores a verified session after refresh and clears it on sign-out',async
  const values=new Map();
  global.window={atob:global.atob,sessionStorage:{getItem:k=>values.get(k)||null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)}};
  const token=`e.${Buffer.from(JSON.stringify({exp:Math.floor(Date.now()/1000)+3600})).toString('base64url')}.s`;
- let calls=0;const transport=async ({credential,action})=>{assert.equal(credential,token);assert.equal(action,'identityStatus');calls++;return {status:'ACTIVE'};};
+ let calls=0;const transport=async ({credential,action})=>{assert.equal(credential,token);calls++;return action==='bootstrap'?{actor:{role:'STAFF'},month:'2026-11'}:{status:'ACTIVE'};};
  const first=createRegistrationGateway(transport);await first.signIn(token);
- const refreshed=createRegistrationGateway(transport);assert.equal((await refreshed.restore()).status,'ACTIVE');assert.equal(calls,2);
+ const refreshed=createRegistrationGateway(transport);const restored=await refreshed.restore('2026-11');assert.equal(restored.status,'ACTIVE');assert.equal(restored.data.month,'2026-11');assert.equal(calls,2);
  refreshed.signOut();assert.equal(await createRegistrationGateway(transport).restore(),null);
  delete global.window;
 });
