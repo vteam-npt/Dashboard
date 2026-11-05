@@ -25,7 +25,7 @@ export async function renderGoogleSignIn(element, clientId, onCredential) {
   if(typeof response?.credential==='string'&&response.credential) onCredential(response.credential);
  }});
  element.replaceChildren();
- for(const text of ['signin_with','signup_with']) {
+ for(const text of ['signin_with']) {
   const group=document.createElement('div');group.className='google-signin-option';
   const label=document.createElement('span');label.className='google-signin-label';label.textContent=text==='signin_with'?'เข้าสู่ระบบ':'สมัครใช้งาน';
   const button=document.createElement('div');group.append(label,button);element.appendChild(group);
