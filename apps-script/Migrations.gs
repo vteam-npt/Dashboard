@@ -32,3 +32,17 @@ function testGoogleSigningKeys_() {
   console.log('Google signing keys retrieved successfully');
 }
 
+
+// Owner-only maintenance. Review the count before running the cleanup.
+function countDeletedSales_() {
+  const db=database_();
+  console.log('Deleted sales awaiting cleanup: '+rows_(db,'Sales').filter(s=>s.status==='DELETED').length);
+}
+function purgeDeletedSales_() {
+  const lock=LockService.getScriptLock();lock.waitLock(30000);
+  try {
+    const db=database_(), sales=rows_(db,'Sales').filter(s=>s.status==='DELETED').sort((a,b)=>b._row-a._row);
+    sales.forEach(s=>removeSale_(db,s));
+    SpreadsheetApp.flush();console.log('Removed deleted sales: '+sales.length);
+  } finally {lock.releaseLock();}
+}

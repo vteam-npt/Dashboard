@@ -71,6 +71,15 @@ function staff_(db,actor,id) {
   assert_(user && scope_(actor,user) && user.family_id && user.branch_id,'ไม่พบพนักงานในขอบเขตที่ได้รับสิทธิ์'); return user;
 }
 function audit_(db, actor, action, id) { save_(db,'AuditLogs',{event_id:Utilities.getUuid(),timestamp:new Date().toISOString(),actor_id:actor.user_id,action,entity_id:id,details:''}); }
+// Caller must hold the script lock. Delete only this sale and its own audit entries.
+function removeSale_(db, sale) {
+  const saleActions=['ADD_SALE','deleteSale','approveSale','rejectSale'];
+  const logs=rows_(db,'AuditLogs').filter(e=>e.entity_id===sale.sale_id && saleActions.includes(e.action));
+  const logSheet=db.getSheetByName('AuditLogs');
+  logs.map(e=>e._row).sort((a,b)=>b-a).forEach(row=>logSheet.deleteRow(row));
+  db.getSheetByName('Sales').deleteRow(sale._row);
+  return {sale_id:sale.sale_id,status:'DELETED'};
+}
 function dispatch_(db, actor, action, p, now) {
   if (action==='bootstrap') return bootstrap_(db,actor,p,now);
   if (action==='approveRegistration' || action==='rejectRegistration') {
@@ -98,7 +107,7 @@ function dispatch_(db, actor, action, p, now) {
     const sale=rows_(db,'Sales').find(s=>s.sale_id===p.sale_id);
     assert_(sale && scope_(actor,sale),'ไม่พบรายการในขอบเขตที่ได้รับสิทธิ์');
     assert_(month_(sale.sold_at)===month_(now),'จัดการได้เฉพาะรายการเดือนปัจจุบัน');
-    if (action==='deleteSale') { assert_(sale.status!=='DELETED','รายการถูกลบแล้ว'); sale.status='DELETED';sale.deleted_by=actor.user_id;sale.deleted_at=now.toISOString(); }
+    if (action==='deleteSale') return removeSale_(db,sale);
     else { manager_(actor);assert_(sale.status==='PENDING','รายการนี้ไม่ได้รออนุมัติ');sale.status=action==='approveSale'?'APPROVED':'REJECTED';sale.approved_by=actor.user_id;sale.approved_at=now.toISOString(); }
     save_(db,'Sales',sale);audit_(db,actor,action,sale.sale_id);return sale;
   }
