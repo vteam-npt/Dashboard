@@ -112,3 +112,5 @@ function Root(){
  return <App initialData={initialData||(restoring?cachedData:null)} validating={restoring} onCache={connection.gateway.cache} onSignOut={()=>{connection.gateway.signOut();setCachedData(null);setRestoring(false);setInitialData(null);setRestoredStatus(null);setAuthenticated(false);}}/>;
 }
 createRoot(document.getElementById('root')).render(<Root/>);
+
+if ('serviceWorker' in navigator) window.addEventListener('load',()=>{navigator.serviceWorker.register(new URL('./sw.js',document.baseURI)).catch(()=>{});});
