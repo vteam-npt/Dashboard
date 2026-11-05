@@ -17,3 +17,12 @@ test('registration gateway keeps credentials in memory and clears them on failur
  await assert.rejects(gateway.status(),/เข้าสู่ระบบ/);
  delete global.window;
 });
+
+test('expired credential is rejected before any backend call',async()=>{
+ const {createRegistrationGateway}=await import('../src/registrationGateway.js');
+ global.window={atob:global.atob};let calls=0;
+ const gateway=createRegistrationGateway(async()=>{calls++;return {status:'ACTIVE'};});
+ const payload=Buffer.from(JSON.stringify({exp:1})).toString('base64url');
+ await assert.rejects(gateway.signIn(`e.${payload}.s`),/หมดอายุ/);
+ assert.equal(calls,0);delete global.window;
+});

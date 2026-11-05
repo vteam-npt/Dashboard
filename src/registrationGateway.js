@@ -4,6 +4,14 @@ export function createRegistrationGateway(transport) {
  let credential = null;
  const request = (action, payload={}) => {
   if (!credential) return Promise.reject(new Error('กรุณาเข้าสู่ระบบด้วย Google อีกครั้ง'));
+  try {
+   const part=credential.split('.')[1].replace(/-/g,'+').replace(/_/g,'/');
+   const claims=JSON.parse(window.atob(part));
+   if (Number.isFinite(claims.exp) && claims.exp*1000<=Date.now()) {
+    credential=null;
+    return Promise.reject(new Error('การเข้าสู่ระบบหมดอายุ กรุณาเข้าสู่ระบบด้วย Google อีกครั้ง'));
+   }
+  } catch (_) { /* The server remains responsible for token validation. */ }
   return transport({credential, action, payload});
  };
  return {
