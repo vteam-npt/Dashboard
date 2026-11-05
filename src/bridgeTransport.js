@@ -1,6 +1,6 @@
 // Pin the exact Apps Script sandbox origin established during deployment; never
 // send a credential to '*' or to a hostname inferred from an incoming message.
-export function createBridgeTransport({url, sandboxOrigin, hostWindow=window, hostDocument=document, timeoutMs=20000}) {
+export function createBridgeTransport({url, sandboxOrigin, hostWindow=window, hostDocument=document, timeoutMs=60000}) {
  const endpoint=new URL(url);
  if (endpoint.protocol!=='https:' || endpoint.hostname!=='script.google.com' || !/^\/macros\/s\/[^/]+\/exec$/.test(endpoint.pathname)) throw new Error('URL ระบบไม่ถูกต้อง');
  const sandbox=new URL(sandboxOrigin);
