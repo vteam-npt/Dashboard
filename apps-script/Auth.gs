@@ -97,7 +97,7 @@ function authenticatedApi(token, action, payload) {
         const pending = !actor && rows_(db,'Registrations').some(r => r.google_sub === identity.sub && r.status === 'PENDING');
         result = {status: actor ? 'ACTIVE' : pending ? 'PENDING' : 'NEW'};
         if (actor && !isSession && p.secret) {
-          const data = bootstrap_(db,actor,{month:p.month},now);
+          const data = bootstrap_(db,actor,{month:p.month,static_catalog:p.static_catalog},now);
           startSession_(db,actor,p.secret,now);
           result.data = data;
         }

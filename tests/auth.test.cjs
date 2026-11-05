@@ -40,7 +40,7 @@ test('sessions store hashes, enforce revoked users, and revoke on logout',()=>{
 test('Google login can create session and bootstrap in one request for an active user only',()=>{
  const {ctx,users}=fixture();const actor=users[0];actor.google_sub='verified';let created=0;
  ctx.googleIdentity_=()=>({sub:'verified',email:'owner@gmail.com'});ctx.database_=()=>({});ctx.LockService={getScriptLock:()=>({waitLock(){},releaseLock(){}})};ctx.SpreadsheetApp={flush(){}};
- ctx.startSession_=(_,user,secret)=>{assert.equal(user.user_id,'admin');assert.match(secret,/^vivo1\./);created++;};ctx.bootstrap_=(_,user,p)=>({actor:{user_id:user.user_id},month:p.month});
- const result=ctx.authenticatedApi('google-id-token','identityStatus',{secret:'vivo1.'+'a'.repeat(43),month:'2026-11'});assert.equal(result.ok,true);assert.equal(result.data.status,'ACTIVE');assert.equal(result.data.data.actor.user_id,'admin');assert.equal(created,1);
+ ctx.startSession_=(_,user,secret)=>{assert.equal(user.user_id,'admin');assert.match(secret,/^vivo1\./);created++;};ctx.bootstrap_=(_,user,p)=>({actor:{user_id:user.user_id},month:p.month,static_catalog:p.static_catalog});
+ const result=ctx.authenticatedApi('google-id-token','identityStatus',{secret:'vivo1.'+'a'.repeat(43),month:'2026-11',static_catalog:true});assert.equal(result.data.data.static_catalog,true);assert.equal(result.ok,true);assert.equal(result.data.status,'ACTIVE');assert.equal(result.data.data.actor.user_id,'admin');assert.equal(created,1);
  ctx.googleIdentity_=()=>({sub:'unknown',email:'new@gmail.com'});ctx.rows_=()=>[];const pending=ctx.authenticatedApi('another-token','identityStatus',{secret:'vivo1.'+'b'.repeat(43),month:'2026-11'});assert.equal(pending.data.status,'NEW');assert.equal(created,1);
 });

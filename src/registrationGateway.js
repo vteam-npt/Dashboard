@@ -21,7 +21,7 @@ export function createRegistrationGateway(transport) {
    try{
     const secret=makeSecret();
     const month=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'}).slice(0,7);
-    const result=await send('identityStatus',{secret,month});
+    const result=await send('identityStatus',{secret,month,static_catalog:true});
     if(current!==generation)throw Error('การเข้าสู่ระบบถูกยกเลิก');
     if(result.status==='ACTIVE'){
      if(result.data?.actor?.user_id){credential=secret;write(key,JSON.stringify({token:secret}));cache(result.data);}
@@ -32,7 +32,7 @@ export function createRegistrationGateway(transport) {
   },
   async restore(month){
    const session=saved();if(!session){clear();return null;}credential=session.token;
-   const current=generation,work=send('bootstrap',{month});restoring=work;
+   const current=generation,work=send('bootstrap',{month,static_catalog:true});restoring=work;
    try{const data=await work;if(current!==generation)return null;cache(data);return {status:'ACTIVE',data};}
    catch(error){if(current!==generation)return null;if(error.code==='SESSION_INVALID')clear();throw error;}finally{if(current===generation)restoring=null;}
   },

@@ -98,7 +98,7 @@ function dispatch_(db, actor, action, p, now) {
     const sold=new Date(p.sold_at); assert_(Number.isFinite(sold.getTime()) && sold<=now && month_(sold)===month_(now),'เพิ่มยอดได้เฉพาะเดือนปัจจุบัน และห้ามเลือกเวลาในอนาคต');
     const prices=rows_(db,'Commissions').filter(r=>r.product_id===product.product_id && new Date(r.effective_from)<=sold && (!r.effective_to || sold<new Date(r.effective_to))).sort((a,b)=>new Date(b.effective_from)-new Date(a.effective_from));
     assert_(prices.length,'ยังไม่มีอัตราคอมมิชชันสำหรับวันขายนี้');
-    const sale={sale_id:Utilities.getUuid(),request_id:requestId,user_id:user.user_id,family_id:user.family_id,branch_id:user.branch_id,product_id:product.product_id,product_name:product.model+(product.ram||product.storage?' '+[product.ram,product.storage].filter(Boolean).join('/'):''),price:money_(p.price),payment_method:p.payment_method,sold_at:sold.toISOString(),recorded_at:now.toISOString(),base_commission:money_(prices[0].amount,true),incentive:0,campaign_ids:'',status:day_(sold)<day_(now)?'PENDING':'APPROVED',created_by:actor.user_id};
+    const sale={sale_id:Utilities.getUuid(),request_id:requestId,user_id:user.user_id,family_id:user.family_id,branch_id:user.branch_id,product_id:product.product_id,product_name:product.model+(product.ram||product.storage?' '+[product.ram,product.storage].filter(Boolean).join('/'):''),price:money_(p.price),payment_method:p.payment_method,sold_at:sold.toISOString(),recorded_at:now.toISOString(),base_commission:money_(prices[0].amount,true),status:day_(sold)<day_(now)?'PENDING':'APPROVED',created_by:actor.user_id};
     save_(db,'Sales',sale); audit_(db,actor,'ADD_SALE',sale.sale_id); return sale;
   }
   if (['deleteSale','approveSale','rejectSale'].includes(action)) {
@@ -130,12 +130,6 @@ function dispatch_(db, actor, action, p, now) {
     u.family_id='';u.branch_id='';u.active=false;save_(db,'Users',u);audit_(db,actor,'DETACH_USER',u.user_id);return {done:true};
   }
   if(action==='addFamily') {admin_(actor);const f={family_id:Utilities.getUuid(),name:text_(p.name,80),active:true};save_(db,'Families',f);audit_(db,actor,'ADD_FAMILY',f.family_id);return f;}
-  if(action==='addProduct') {
-    admin_(actor);assert_(['Y','V','X','Other'].includes(p.series),'ซีรีส์ไม่ถูกต้อง');
-    const item={product_id:Utilities.getUuid(),series:p.series,model:text_(p.model,80),ram:p.series==='Other' && !String(p.ram||'').trim()?'':text_(String(p.ram),10),storage:p.series==='Other' && !String(p.storage||'').trim()?'':text_(String(p.storage),10),standard_price:money_(p.standard_price),active:true,is_demo:false};
-    const amount=money_(p.commission,true);save_(db,'Products',item);save_(db,'Commissions',{rule_id:Utilities.getUuid(),product_id:item.product_id,amount,effective_from:now.toISOString(),effective_to:''});audit_(db,actor,'ADD_PRODUCT',item.product_id);return item;
-  }
-  if(action==='archiveProduct') {admin_(actor);const item=rows_(db,'Products').find(x=>x.product_id===p.product_id);assert_(item,'ไม่พบสินค้า');item.active=false;save_(db,'Products',item);audit_(db,actor,'ARCHIVE_PRODUCT',item.product_id);return item;}
   if(action==='export') {return bootstrap_(db,actor,p,now).sales;}
   throw new Error('ไม่รองรับการทำรายการนี้');
 }
@@ -144,5 +138,5 @@ function bootstrap_(db,actor,p,now) {
   const users=rows_(db,'Users').filter(u=>scope_(actor,u));
   const ids=users.map(u=>u.user_id);
   const registrations=actor.role==='STAFF'?[]:rows_(db,'Registrations').filter(r=>r.status==='PENDING' && (actor.role==='ADMIN'||((r.requested_role||'STAFF')==='STAFF' && r.manager_id===actor.user_id && r.family_id===actor.family_id))).map(r=>({request_id:r.request_id,name:r.name,branch_name:r.branch_name,manager_id:r.manager_id,requested_role:r.requested_role||'STAFF',created_at:r.created_at,status:r.status}));
-  return {actor,month,server_now:now.toISOString(),users,products:rows_(db,'Products'),commissions:rows_(db,'Commissions'),families:rows_(db,'Families').filter(f=>actor.role==='ADMIN'||f.family_id===actor.family_id),branches:rows_(db,'Branches').filter(b=>actor.role==='ADMIN'||users.some(u=>u.branch_id===b.branch_id)),targets:latestTargets_(rows_(db,'Targets'),month).filter(t=>ids.includes(t.user_id)),sales:rows_(db,'Sales').filter(s=>scope_(actor,s)&&month_(s.sold_at)===month),campaigns:[],registrations};
+  return {actor,month,server_now:now.toISOString(),users,products:p.static_catalog===true?[]:rows_(db,'Products'),commissions:p.static_catalog===true?[]:rows_(db,'Commissions'),families:rows_(db,'Families').filter(f=>actor.role==='ADMIN'||f.family_id===actor.family_id),branches:rows_(db,'Branches').filter(b=>actor.role==='ADMIN'||users.some(u=>u.branch_id===b.branch_id)),targets:latestTargets_(rows_(db,'Targets'),month).filter(t=>ids.includes(t.user_id)),sales:rows_(db,'Sales').filter(s=>scope_(actor,s)&&month_(s.sold_at)===month),registrations};
 }

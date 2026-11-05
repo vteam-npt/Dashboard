@@ -28,9 +28,8 @@ function setupProductionDatabase_() {
       Memberships: ['membership_id','user_id','family_id','branch_id','started_at','ended_at'],
       Products: ['product_id','series','model','ram','storage','standard_price','active','is_demo'],
       Commissions: ['rule_id','product_id','amount','effective_from','effective_to'],
-      Campaigns: ['campaign_id','family_id','product_id','name','amount','starts_at','ends_at','created_by','active'],
       Targets: ['target_id','user_id','month','amount','set_by','updated_at'],
-      Sales: ['sale_id','request_id','user_id','family_id','branch_id','product_id','product_name','price','payment_method','sold_at','recorded_at','base_commission','incentive','campaign_ids','status','created_by','approved_by','approved_at','deleted_by','deleted_at'],
+      Sales: ['sale_id','request_id','user_id','family_id','branch_id','product_id','product_name','price','payment_method','sold_at','recorded_at','base_commission','status','created_by','approved_by','approved_at','deleted_by','deleted_at'],
       AuditLogs: ['event_id','timestamp','actor_id','action','entity_id','details'],
       Settings: ['key','value']
     };
