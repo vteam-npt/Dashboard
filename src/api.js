@@ -5,7 +5,7 @@ const env=import.meta.env;
 export const productionConfig={clientId:env.VITE_GOOGLE_CLIENT_ID,bridgeUrl:env.VITE_APPS_SCRIPT_URL,sandboxOrigin:env.VITE_APPS_SCRIPT_SANDBOX_ORIGIN};
 export const configured=Object.values(productionConfig).some(Boolean);
 export const live=Object.values(productionConfig).every(Boolean);
-export const staticProducts=catalogPatch.map(([series,model,ram,storage])=>({product_id:catalogId(series,model,ram,storage),series,model,ram,storage,standard_price:'',active:true,is_demo:false}));
+export const staticProducts=catalogPatch.map(([series,model,ram,storage,commission,price])=>({product_id:catalogId(series,model,ram,storage),series,model,ram,storage,standard_price:price,active:true,is_demo:false}));
 export function useStaticCatalog(data){return data?{...data,products:staticProducts}:data;}
 const writeActions=new Set(['addSale','deleteSale','approveSale','rejectSale','setTarget','addUser','detachUser','addFamily','approveRegistration','rejectRegistration']);
 const enqueue=createWriteQueue(()=>typeof navigator==='undefined'||navigator.onLine!==false);

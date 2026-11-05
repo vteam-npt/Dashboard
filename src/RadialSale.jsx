@@ -41,7 +41,7 @@ export function RadialSale({data,staff,team,busy,onSave}){
   anime({targets:groups,scale:[0,1],opacity:[0,1],easing:'easeOutElastic(1, .65)',duration:740,delay:anime.stagger(55),complete:()=>setTransition(current=>current==='entering'?'idle':current)});
   return()=>anime.remove(groups);
  },[wheelKey]);
- const choose=i=>{const item=items[i];if(!item)return;changeWheel(()=>{if(!series){setSeries(item.value);}else if(!model){setModel(item.value);}else{const p=active.find(x=>x.product_id===item.value);if(p){setProduct(p);setPrice('');setPayment('');setNotice('');}}setHover(-1);});};
+ const choose=i=>{const item=items[i];if(!item)return;changeWheel(()=>{if(!series){setSeries(item.value);}else if(!model){setModel(item.value);}else{const p=active.find(x=>x.product_id===item.value);if(p){setProduct(p);setPrice(p.standard_price??'');setPayment('');setNotice('');}}setHover(-1);});};
  const back=()=>{if(product){if(transitionLock.current)return;setProduct(null);setPayment('');return;}changeWheel(()=>{if(model)setModel('');else if(series)setSeries('');setHover(-1);});};
  const home=()=>{if(transitionLock.current)return;if(product){setProduct(null);setSeries('');setModel('');setPayment('');setHover(-1);return;}changeWheel(()=>{setSeries('');setModel('');setHover(-1);});};
  const submit=async e=>{e.preventDefault();if(!payment){setNotice('กรุณาเลือกช่องทางชำระเงิน');return;}if(!staff){setNotice('หน้านี้สำหรับพนักงาน กรุณาเพิ่มรายการผ่านเมนูรายการขาย');return;}setNotice('');const success=await onSave({request_id:requestId,product_id:product.product_id,price,payment_method:payment,sold_at:sold+':00+07:00'});if(success){setProduct(null);setSeries('');setModel('');setPayment('');setRequestId(crypto.randomUUID());setSold(nowLocal());}};
