@@ -11,10 +11,11 @@ const writeActions=new Set(['addSale','deleteSale','approveSale','rejectSale','s
 const enqueue=createWriteQueue(()=>typeof navigator==='undefined'||navigator.onLine!==false);
 let gateway=null;
 export function setGateway(value){gateway=value;}
-export function call(action,payload={}){
+export function call(action,payload={},expectedSession=null){
  if(!live||!gateway)return Promise.reject(new Error('หน้าตัวอย่างนี้ไม่สามารถบันทึกข้อมูลจริงได้'));
  const current=gateway;
- const run=()=>{if(current!==gateway)throw new Error('บัญชีเปลี่ยนแล้ว กรุณาบันทึกอีกครั้ง');return current.call(action,action==='bootstrap'?{...payload,static_catalog:true}:payload);};
+ const run=()=>{if(current!==gateway||(expectedSession&&(expectedSession.gateway!==current||expectedSession.version!==current.sessionVersion())))throw new Error('บัญชีเปลี่ยนแล้ว กรุณาเข้าสู่ระบบบัญชีเดิมก่อนส่งอีกครั้ง');return current.call(action,action==='bootstrap'?{...payload,static_catalog:true}:payload);};
  return writeActions.has(action)?enqueue(run):run();
 }
+export function bindSessionCall(){const expected={gateway,version:gateway?.sessionVersion()};return (action,payload)=>call(action,payload,expected);}
 export const preview={actor:{user_id:'preview',name:'ผู้ดูแลระบบ',role:'ADMIN'},month:new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'}).slice(0,7),users:[],sales:[],registrations:[],targets:[],families:[{family_id:'family-demo-1',name:'ทีมตัวอย่าง 1'}],branches:[],commissions:[],products:staticProducts};

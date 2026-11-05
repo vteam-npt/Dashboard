@@ -12,6 +12,7 @@ export function createRegistrationGateway(transport) {
  const start=async()=>{const secret=makeSecret();await send('startSession',{secret});credential=secret;write(key,JSON.stringify({token:secret}));};
  const cache=data=>{if(saved()&&data?.actor?.user_id)write(cacheKey,JSON.stringify({month:data.month,data}));};
  return {
+  sessionVersion(){return generation;},
   onSessionInvalid(callback){onInvalid=callback;},
   cached(month){const session=saved();if(!session){clear();return null;}try{const item=JSON.parse(read(cacheKey)||'null');return item?.month===month&&item.data?.actor?.user_id?item.data:null;}catch(_){return null;}},
   cache,
