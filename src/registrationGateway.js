@@ -8,7 +8,8 @@ export function createRegistrationGateway(transport) {
  const saved=()=>{try{const value=JSON.parse(read(key)||'null');return value&&/^vivo1\.[A-Za-z0-9_-]{43}$/.test(value.token)?value:null;}catch(_){return null;}};
  const send=(action,payload={})=>credential?transport({credential,action,payload}):Promise.reject(new Error('กรุณาเข้าสู่ระบบด้วย Google อีกครั้ง'));
  const request=async(action,payload={})=>{if(restoring)await restoring;try{return await send(action,payload);}catch(error){if(error.code==='SESSION_INVALID'){clear();onInvalid();}throw error;}};
- const start=async()=>{const bytes=new Uint8Array(32);window.crypto.getRandomValues(bytes);const secret='vivo1.'+window.btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');await send('startSession',{secret});credential=secret;write(key,JSON.stringify({token:secret}));};
+ const makeSecret=()=>{const bytes=new Uint8Array(32);window.crypto.getRandomValues(bytes);return 'vivo1.'+window.btoa(String.fromCharCode(...bytes)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');};
+ const start=async()=>{const secret=makeSecret();await send('startSession',{secret});credential=secret;write(key,JSON.stringify({token:secret}));};
  const cache=data=>{if(saved()&&data?.actor?.user_id)write(cacheKey,JSON.stringify({month:data.month,data}));};
  return {
   onSessionInvalid(callback){onInvalid=callback;},
@@ -16,14 +17,18 @@ export function createRegistrationGateway(transport) {
   cache,
   async signIn(value){
    if(typeof value!=='string'||!value)throw Error('ไม่สามารถยืนยันบัญชี Google ได้');
-   clear();credential=value;
+   clear();credential=value;const current=generation;
    try{
-    const result=await send('identityStatus');
+    const secret=makeSecret();
+    const month=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'}).slice(0,7);
+    const result=await send('identityStatus',{secret,month});
+    if(current!==generation)throw Error('การเข้าสู่ระบบถูกยกเลิก');
     if(result.status==='ACTIVE'){
-     await start();
+     if(result.data?.actor?.user_id){credential=secret;write(key,JSON.stringify({token:secret}));cache(result.data);}
+     else await start();
     }
     return result;
-   }catch(error){clear();throw error;}
+   }catch(error){if(current===generation)clear();throw error;}
   },
   async restore(month){
    const session=saved();if(!session){clear();return null;}credential=session.token;

@@ -96,6 +96,11 @@ function authenticatedApi(token, action, payload) {
       } else if (action === 'identityStatus') {
         const pending = !actor && rows_(db,'Registrations').some(r => r.google_sub === identity.sub && r.status === 'PENDING');
         result = {status: actor ? 'ACTIVE' : pending ? 'PENDING' : 'NEW'};
+        if (actor && !isSession && p.secret) {
+          const data = bootstrap_(db,actor,{month:p.month},now);
+          startSession_(db,actor,p.secret,now);
+          result.data = data;
+        }
       } else if (action === 'registrationManagers') {
         assert_(!actor, 'บัญชีนี้มีสิทธิ์เข้าใช้งานแล้ว');
         result = rows_(db,'Users').filter(u => u.role === 'MANAGER' && active_(u) && u.family_id).map(u => ({id:u.user_id,name:u.name}));

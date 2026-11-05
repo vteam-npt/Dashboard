@@ -103,7 +103,7 @@ function Root(){
  if(connection?.error)return <div className="registration-shell"><section className="registration-card"><h1>ไม่สามารถเข้าใช้งานได้</h1><p>{connection.error}</p></section></div>;
  if(restoring&&!cachedData)return <div className="registration-shell"><section className="registration-card"><LoaderCircle className="spin"/><p>กำลังตรวจสอบการเข้าสู่ระบบ</p></section></div>;
  if(restoreError)return <div className="registration-shell"><section className="registration-card"><h1>ไม่สามารถตรวจสอบการเข้าสู่ระบบ</h1><p>{restoreError}</p><button className="registration-primary" onClick={restore}>ลองอีกครั้ง</button><p><button className="registration-secondary" onClick={()=>{connection.gateway.signOut();setRestoreError('');setRestoredStatus(null);}}>เข้าสู่ระบบใหม่</button></p></section></div>;
- if(!authenticated&&!(restoring&&cachedData))return <Registration clientId={productionConfig.clientId} gateway={connection.gateway} initialStatus={restoredStatus} onAuthenticated={()=>setAuthenticated(true)}/>;
+ if(!authenticated&&!(restoring&&cachedData))return <Registration clientId={productionConfig.clientId} gateway={connection.gateway} initialStatus={restoredStatus} onAuthenticated={result=>{if(result?.data)setInitialData(result.data);setAuthenticated(true);}}/>;
  return <App initialData={initialData||(restoring?cachedData:null)} validating={restoring} onCache={connection.gateway.cache} onSignOut={()=>{connection.gateway.signOut();setCachedData(null);setRestoring(false);setInitialData(null);setRestoredStatus(null);setAuthenticated(false);}}/>;
 }
 createRoot(document.getElementById('root')).render(<Root/>);
