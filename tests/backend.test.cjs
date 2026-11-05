@@ -16,3 +16,20 @@ test('manager target respects family scope',()=>{const f=fixture();assert.throws
 test('overlapping campaigns blocked only in same family and product',()=>{const f=fixture();const p={family_id:'f1',product_id:'p',name:'Weekend',amount:50,starts_at:'2026-11-06T00:00:00+07:00',ends_at:'2026-11-08T00:00:00+07:00'};f.run(f.manager,'addCampaign',p);assert.throws(()=>f.run(f.manager,'addCampaign',p));f.run(f.admin,'addCampaign',{...p,family_id:'f2'});assert.equal(f.tables.Campaigns.length,2);});
 test('missing Google identity fails closed',()=>{const f=fixture();assert.throws(()=>f.ctx.actor_(null),/GOOGLE_IDENTITY_REQUIRED/);});
 test('spreadsheet row numbers remain correct when there are blank rows',()=>{const ctx=vm.createContext({});vm.runInContext(fs.readFileSync('apps-script/Backend.gs','utf8'),ctx);const db={getSheetByName:()=>({getDataRange:()=>({getValues:()=>[['id','name'],['first','A'],['',''],['second','B']]})})};const rows=ctx.rows_(db,'Users');assert.equal(rows.length,2);assert.equal(rows[1]._row,4);});
+
+test('sheet date months and duplicate targets show and update only the latest target',()=>{
+ const f=fixture();
+ f.tables.Targets.push({target_id:'old',user_id:'a',month:'2026-10-31T17:00:00.000Z',amount:100,updated_at:'2026-11-05T01:00:00.000Z',_row:2},
+ {target_id:'new',user_id:'a',month:'2026-10-31T17:00:00.000Z',amount:200,updated_at:'2026-11-05T02:00:00.000Z',_row:3});
+ const snapshot=f.run(f.manager,'bootstrap',{month:'2026-11'});
+ assert.equal(snapshot.targets.length,1);assert.equal(snapshot.targets[0].amount,200);assert.equal(snapshot.targets[0].month,'2026-11');
+ const updated=f.run(f.manager,'setTarget',{user_id:'a',amount:300});
+ assert.equal(updated.target_id,'new');assert.equal(f.tables.Targets.length,2);assert.equal(f.run(f.manager,'bootstrap',{month:'2026-11'}).targets[0].amount,300);
+ assert.equal(f.run(f.manager,'bootstrap',{month:'2026-10'}).targets.length,0);
+});
+test('month is saved as plain text so Sheets does not convert it into a date',()=>{
+ const f=fixture();let written;
+ const sheet={getRange:(row,col,height,width)=>({getValues:()=>[['target_id','user_id','month','amount']],setValues:values=>{written=values;}}),getLastColumn:()=>4,getLastRow:()=>1};
+ const ctx=vm.createContext({});vm.runInContext(fs.readFileSync('apps-script/Backend.gs','utf8'),ctx);
+ ctx.save_({getSheetByName:()=>sheet},'Targets',{target_id:'x',user_id:'a',month:'2026-11',amount:1});assert.equal(written[0][2],"'2026-11");
+});

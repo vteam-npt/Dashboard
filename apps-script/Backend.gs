@@ -29,7 +29,7 @@ function save_(db, name, record) {
   const headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0];
   const values = headers.map(h => record[h] === undefined ? '' : record[h]);
   // User-controlled text is never interpreted as a spreadsheet formula.
-  const safe = values.map(v => typeof v === 'string' && /^[=+@\-]/.test(v) ? "'"+v : v);
+  const safe = values.map((v,i) => typeof v === 'string' && ((name==='Targets' && headers[i]==='month') || /^[=+@\-]/.test(v)) ? "'"+v : v);
   sheet.getRange(record._row || sheet.getLastRow()+1,1,1,headers.length).setValues([safe]);
   return record;
 }
@@ -45,6 +45,22 @@ function actor_(db) {
 function assert_(condition,message) { if (!condition) throw new Error(message); }
 function month_(date) { return new Date(new Date(date).getTime()+7*3600000).toISOString().slice(0,7); }
 function day_(date) { return new Date(new Date(date).getTime()+7*3600000).toISOString().slice(0,10); }
+function targetMonth_(value) {
+  const text=String(value || '');
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(text)) return text;
+  const date=new Date(value);
+  return Number.isFinite(date.getTime()) ? month_(date) : '';
+}
+function latestTargets_(targets, month) {
+  const latest=new Map();
+  targets.forEach(t=>{
+    if (targetMonth_(t.month)!==month) return;
+    const prior=latest.get(t.user_id);
+    const time=Date.parse(t.updated_at)||0, previous=prior ? Date.parse(prior.updated_at)||0 : 0;
+    if (!prior || time>previous || (time===previous && (t._row||0)>(prior._row||0))) latest.set(t.user_id,t);
+  });
+  return Array.from(latest.values()).map(t=>({...t,month}));
+}
 function money_(value, zero) { const n=Number(value); assert_(value !== '' && Number.isFinite(n) && n >= (zero ? 0 : 0.01) && n<=100000000 && Math.abs(n*100-Math.round(n*100))<0.00001,'จำนวนเงินไม่ถูกต้อง'); return Math.round(n*100)/100; }
 function text_(value, max) { assert_(typeof value === 'string' && value.trim() && value.length <= max,'กรุณาระบุข้อมูลให้ครบ'); return value.trim(); }
 function manager_(actor) { assert_(['MANAGER','ADMIN'].includes(actor.role),'เฉพาะหัวหน้าหรือผู้ดูแล'); }
@@ -88,7 +104,7 @@ function dispatch_(db, actor, action, p, now) {
   }
   if (action==='setTarget') {
     manager_(actor);const user=staff_(db,actor,p.user_id); const month=month_(now);
-    const target=rows_(db,'Targets').find(t=>t.user_id===user.user_id && t.month===month) || {target_id:Utilities.getUuid(),user_id:user.user_id,month};
+    const target=latestTargets_(rows_(db,'Targets'),month).find(t=>t.user_id===user.user_id) || {target_id:Utilities.getUuid(),user_id:user.user_id,month};
     target.amount=money_(p.amount,true);target.set_by=actor.user_id;target.updated_at=now.toISOString();save_(db,'Targets',target);audit_(db,actor,'SET_TARGET',target.target_id);return target;
   }
   if (action==='addCampaign') {
@@ -130,5 +146,5 @@ function bootstrap_(db,actor,p,now) {
   const users=rows_(db,'Users').filter(u=>scope_(actor,u));
   const ids=users.map(u=>u.user_id);
   const registrations=actor.role==='STAFF'?[]:rows_(db,'Registrations').filter(r=>r.status==='PENDING' && (actor.role==='ADMIN'||((r.requested_role||'STAFF')==='STAFF' && r.manager_id===actor.user_id && r.family_id===actor.family_id))).map(r=>({request_id:r.request_id,name:r.name,branch_name:r.branch_name,manager_id:r.manager_id,requested_role:r.requested_role||'STAFF',created_at:r.created_at,status:r.status}));
-  return {actor,month,server_now:now.toISOString(),users,products:rows_(db,'Products'),commissions:rows_(db,'Commissions'),families:rows_(db,'Families').filter(f=>actor.role==='ADMIN'||f.family_id===actor.family_id),branches:rows_(db,'Branches').filter(b=>actor.role==='ADMIN'||users.some(u=>u.branch_id===b.branch_id)),targets:rows_(db,'Targets').filter(t=>t.month===month&&ids.includes(t.user_id)),sales:rows_(db,'Sales').filter(s=>scope_(actor,s)&&month_(s.sold_at)===month),campaigns:rows_(db,'Campaigns').filter(c=>actor.role==='ADMIN'||c.family_id===actor.family_id),registrations};
+  return {actor,month,server_now:now.toISOString(),users,products:rows_(db,'Products'),commissions:rows_(db,'Commissions'),families:rows_(db,'Families').filter(f=>actor.role==='ADMIN'||f.family_id===actor.family_id),branches:rows_(db,'Branches').filter(b=>actor.role==='ADMIN'||users.some(u=>u.branch_id===b.branch_id)),targets:latestTargets_(rows_(db,'Targets'),month).filter(t=>ids.includes(t.user_id)),sales:rows_(db,'Sales').filter(s=>scope_(actor,s)&&month_(s.sold_at)===month),campaigns:rows_(db,'Campaigns').filter(c=>actor.role==='ADMIN'||c.family_id===actor.family_id),registrations};
 }
