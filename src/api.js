@@ -3,11 +3,11 @@ import {createWriteQueue} from './writeQueue';
 import {catalogId} from './catalogIds';
 const env=import.meta.env;
 export const productionConfig={clientId:env.VITE_GOOGLE_CLIENT_ID,bridgeUrl:env.VITE_APPS_SCRIPT_URL,sandboxOrigin:env.VITE_APPS_SCRIPT_SANDBOX_ORIGIN};
-export const configured=Object.values(productionConfig).some(Boolean);
-export const live=Object.values(productionConfig).every(Boolean);
-export const staticProducts=catalogPatch.map(([series,model,ram,storage,commission,price])=>({product_id:catalogId(series,model,ram,storage),series,model,ram,storage,standard_price:price,active:true,is_demo:false}));
+export const configured=Boolean(productionConfig.bridgeUrl||productionConfig.sandboxOrigin);
+export const live=Boolean(productionConfig.bridgeUrl&&productionConfig.sandboxOrigin);
+export const staticProducts=catalogPatch.map(([series,model,ram,storage,commission,price])=>({product_id:catalogId(series,model,ram,storage),series,model,ram,storage,standard_price:price,base_commission:commission,active:true,is_demo:false}));
 export function useStaticCatalog(data){return data?{...data,products:staticProducts}:data;}
-const writeActions=new Set(['addSale','deleteSale','approveSale','rejectSale','setTarget','addUser','detachUser','addFamily','approveRegistration','rejectRegistration']);
+const writeActions=new Set(['syncDeletes','syncSales','addSale','deleteSale','approveSale','rejectSale','setTarget','addUser','detachUser','addFamily','approveRegistration','rejectRegistration','pinApprove','pinReject','adminSetPin']);
 const enqueue=createWriteQueue(()=>typeof navigator==='undefined'||navigator.onLine!==false);
 let gateway=null;
 export function setGateway(value){gateway=value;}

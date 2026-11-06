@@ -5,7 +5,7 @@ function doGet() {
   const html = `<!doctype html><html><head><meta charset="utf-8"></head><body><script>
   (function () {
     const origins = ${JSON.stringify(origins)};
-    const allowedActions = ['startSession','endSession','identityStatus','registrationManagers','register','bootstrap','addSale','deleteSale','approveSale','rejectSale','setTarget','addUser','detachUser','addFamily','approveRegistration','rejectRegistration','export'];
+    const allowedActions = ['syncSales','syncDeletes','pinManagers','pinApply','pinLogin','pinApplications','pinApprove','pinReject','adminSetPin','startSession','endSession','identityStatus','registrationManagers','register','bootstrap','addSale','deleteSale','approveSale','rejectSale','setTarget','addUser','detachUser','addFamily','approveRegistration','rejectRegistration','export'];
     window.addEventListener('message', function (event) {
       if (event.source !== window.top || !origins.includes(event.origin)) return;
       const msg = event.data;

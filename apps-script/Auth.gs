@@ -59,7 +59,7 @@ function sessionActor_(db,token,now) {
   const session=rows_(db,'Sessions').find(s=>s.session_hash===hash);
   assert_(session && !active_({active:session.revoked}),'SESSION_INVALID');
   const actor=rows_(db,'Users').find(u=>u.user_id===session.user_id && active_(u));
-  assert_(actor && actor.google_sub,'SESSION_INVALID');
+  assert_(actor,'SESSION_INVALID');
   return actor;
 }
 function startSession_(db,actor,secret,now) {
@@ -81,13 +81,17 @@ function authenticatedApi(token, action, payload) {
   const lock = LockService.getScriptLock();
   try {
     const isSession=typeof token==='string' && token.startsWith('vivo1.');
-    const identity=isSession ? null : googleIdentity_(token);
+    const publicPin=['pinManagers','pinApply','pinLogin'].includes(action);
+    const identity=isSession || publicPin ? null : googleIdentity_(token);
     lock.waitLock(30000);
     try {
       const db = database_(), p = payload || {}, now = new Date();
-      const actor = isSession ? sessionActor_(db,token,now) : actorForIdentity_(db,identity);
+      const actor = publicPin ? null : isSession ? sessionActor_(db,token,now) : actorForIdentity_(db,identity);
       let result;
-      if (action === 'startSession') {
+      if(action==='pinManagers'){result=rows_(db,'Users').filter(u=>u.role==='MANAGER'&&active_(u)&&u.family_id).map(u=>({id:u.user_id,name:u.name}));}
+      else if(action==='pinApply'){result=pinApply_(db,p,now);}
+      else if(action==='pinLogin'){result=pinLogin_(db,p,now);}
+      else if (action === 'startSession') {
         assert_(!isSession,'กรุณาเข้าสู่ระบบด้วย Google');
         result=startSession_(db,actor,p.secret,now);
       } else if (action === 'endSession') {

@@ -1,0 +1,13 @@
+# Local-first deployment notes
+
+Do not deploy the static frontend by itself: it depends on the new Apps Script API and will otherwise fail authentication and synchronization. Verify in a separate Apps Script project and spreadsheet first.
+
+1. Create a test project and an isolated spreadsheet. Configure SETUP_STATUS and DATABASE_ID only for the test database; copy the packaged Apps Script application and use a separate web-app deployment. Run `setupLocalFirst_` as its owner. Seed synthetic admin, manager, employee and products only in the test database.
+2. Test PIN enrollment/approval, login and role scoping; simulate disconnect, verify offline reload, insert/delete and reconnect with a pending outbox; test batch duplicates and retry, patch mismatch and repair, and admin/employee simultaneous deletion. Check server and client dates in Asia/Bangkok.
+3. Prior to production migration, ensure the existing Admin session is available and a rollback deployment and spreadsheet backup are ready. Deploy the backwards-compatible API first and preserve existing spreadsheet rows and Google-linked sessions during transition. Run `setupLocalFirst_` as owner. Create no default Admin PIN in source or configuration: have the Admin set it from their current authenticated session, verify PIN login separately, then switch frontend.
+4. The app stores unacknowledged sales and drafts in IndexedDB. Existing `vivo-sale-cart-v1:<user>` localStorage drafts are migrated when the same user first enters the sales screen, and remain drafts. Verify migration from real data in a test profile before any rollout.
+5. Catalog updates require a new immutable entry in **both** `src/catalog-history.json` and `public/catalog-history.json`, with an ISO effective timestamp and complete product rows; never overwrite old versions. Update the Apps Script `SYNC_CATALOG_VERSIONS` property with the same version/timestamp before activation. Publish the matching frontend and static history before the effective timestamp. Test a stale client, outbox repair, repeated requests, and new products. Do not rely on a client-side clock as a security boundary.
+6. The service worker caches the app shell, never the API or account data. A closed app is not guaranteed to sync until opened again. Verify mobile browsers and PWA installation.
+7. Rollback must not clear IndexedDB or localStorage. Old frontends do not know about the new outbox, so reverting frontend alone can hide unsent data; stop sync and plan explicit recovery before rollback.
+
+`artifacts/Application.gs` is generated using `node scripts/package-gas.mjs`. It is a review artifact, not evidence of an Apps Script deployment. Do not paste secrets, PINs, production data or session credentials into source or test logs.

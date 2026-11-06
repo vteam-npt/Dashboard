@@ -13,9 +13,14 @@ export function createRegistrationGateway(transport) {
  const cache=data=>{if(saved()&&data?.actor?.user_id)write(cacheKey,JSON.stringify({month:data.month,data}));};
  return {
   sessionVersion(){return generation;},
+  useOfflineSession(){const session=saved();if(!session)return false;credential=session.token;return true;},
   onSessionInvalid(callback){onInvalid=callback;},
   cached(month){const session=saved();if(!session){clear();return null;}try{const item=JSON.parse(read(cacheKey)||'null');return item?.month===month&&item.data?.actor?.user_id?item.data:null;}catch(_){return null;}},
+  cachedLatest(){if(!saved())return null;try{const item=JSON.parse(read(cacheKey)||'null');return item?.data?.actor?.user_id?item.data:null;}catch(_){return null;}},
   cache,
+  async pinManagers(){return transport({credential:'vivo-public',action:'pinManagers',payload:{}});},
+  async pinApply(payload){return transport({credential:'vivo-public',action:'pinApply',payload});},
+  async pinLogin(email,pin){clear();const current=generation,secret=makeSecret();try{const month=new Date().toLocaleDateString('en-CA',{timeZone:'Asia/Bangkok'}).slice(0,7);const result=await transport({credential:'vivo-public',action:'pinLogin',payload:{email,pin,secret,month}});if(current!==generation)throw Error('การเข้าสู่ระบบถูกยกเลิก');if(result.status==='ACTIVE'){credential=secret;write(key,JSON.stringify({token:secret}));cache(result.data);}return result;}catch(error){if(current===generation)clear();throw error;}},
   async signIn(value){
    if(typeof value!=='string'||!value)throw Error('ไม่สามารถยืนยันบัญชี Google ได้');
    clear();credential=value;const current=generation;
