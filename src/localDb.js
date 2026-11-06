@@ -1,3 +1,4 @@
+import {bangkokMonth} from './bangkokMonth.js';
 // Separate records by account; snapshots never replace the local outbox.
 const DB_NAME='vivo-local-first', DB_VERSION=4;
 const key=(userId,month)=>`${userId}:${month}`;
@@ -30,7 +31,7 @@ export async function acknowledgeSales(db,userId,month,acknowledged){
 }
 export async function localDashboard(db,userId,month){
  const snapshot=await getSnapshot(db,userId,month);if(!snapshot)return null;
- const pending=(await pendingSales(db,userId)).filter(entry=>entry.kind==='sale'&&entry.item.sold_at.slice(0,7)===month);
+ const pending=(await pendingSales(db,userId)).filter(entry=>entry.kind==='sale'&&bangkokMonth(entry.item.sold_at)===month);
  const tx=db.transaction('accepted','readonly'),accepted=(await result(tx.objectStore('accepted').index('userId').getAll(userId))).filter(x=>x.month===month);const base=snapshot.sales.slice(),existing=new Set(base.map(s=>s.request_id).filter(Boolean));for(const row of accepted)if(!existing.has(row.requestId)){base.push(row.sale);existing.add(row.requestId);}
  const deletes=(await pendingSales(db,userId)).filter(e=>e.kind==='delete');const removedTx=db.transaction('removed','readonly'),removedRows=await result(removedTx.objectStore('removed').index('userId').getAll(userId));const hidden=new Set([...deletes.map(e=>e.item.sale_id),...removedRows.map(e=>e.saleId)]);const hiddenRequests=new Set([...deletes.map(e=>e.item.request_id),...removedRows.map(e=>e.requestId)]);const local=pending.filter(e=>!existing.has(e.requestId)&&!hiddenRequests.has(e.requestId)).map(e=>({...e.item,sale_id:`local:${e.requestId}`,user_id:userId,status:'APPROVED',sync_status:e.status}));
  return {...snapshot,sales:[...base.filter(s=>!hidden.has(s.sale_id)&&!hiddenRequests.has(s.request_id)),...local]};
@@ -49,7 +50,7 @@ export async function commitDrafts(db,userId,items){
  if(!items.length||items.some(i=>!i.request_id||!i.product_id))throw new Error('ข้อมูลรายการไม่ครบ');
  const tx=db.transaction(['drafts','outbox','snapshots'],'readwrite'),drafts=tx.objectStore('drafts'),outbox=tx.objectStore('outbox'),snapshots=tx.objectStore('snapshots');const record=await result(drafts.get(userId));const stored=record?.items||[];const ids=new Set(items.map(i=>i.request_id));
  if(ids.size!==items.length||items.some(item=>!stored.some(s=>s.request_id===item.request_id))){tx.abort();throw new Error('รายการในตะกร้าเปลี่ยนแล้ว กรุณาตรวจสอบอีกครั้ง');}
- for(const month of new Set(items.map(item=>item.sold_at?.slice(0,7)))){if(!month||!await result(snapshots.get(key(userId,month)))){tx.abort();throw new Error('ข้อมูลเดือนนี้ในเครื่องยังไม่พร้อม กรุณาเชื่อมต่อและอัปเดตข้อมูล');}}
+ for(const month of new Set(items.map(item=>bangkokMonth(item.sold_at)))){if(!month||!await result(snapshots.get(key(userId,month)))){tx.abort();throw new Error('ข้อมูลเดือนนี้ในเครื่องยังไม่พร้อม กรุณาเชื่อมต่อและอัปเดตข้อมูล');}}
  for(const item of items)outbox.add({key:key(userId,item.request_id),userId,requestId:item.request_id,kind:'sale',status:'PENDING',item});drafts.put({userId,items:stored.filter(i=>!ids.has(i.request_id))});await complete(tx);
 }
 export async function setSyncNotice(db,userId,message){const tx=db.transaction('meta','readwrite');tx.objectStore('meta').put({key:'sync:'+userId,message});await complete(tx);}
@@ -72,6 +73,6 @@ export async function queueSaleDeletions(db,actorId,sales){
 }
 export async function queueSaleDeletion(db,actorId,sale){return queueSaleDeletions(db,actorId,[sale]);}
 
-export async function acknowledgeDeletions(db,userId,acks){const tx=db.transaction(['outbox','snapshots','accepted','removed'],'readwrite'),outbox=tx.objectStore('outbox'),snapshots=tx.objectStore('snapshots'),accepted=tx.objectStore('accepted'),removed=tx.objectStore('removed');for(const ack of acks){const row=await result(outbox.get(key(userId,ack.delete_id)));if(!row||row.kind!=='delete')continue;const month=row.item.sold_at.slice(0,7),record=await result(snapshots.get(key(userId,month)));if(record){record.data.sales=record.data.sales.filter(s=>s.sale_id!==row.item.sale_id&&s.request_id!==row.item.request_id);snapshots.put(record)}accepted.delete(key(userId,row.item.request_id));removed.put({key:key(userId,row.item.request_id),userId,month,requestId:row.item.request_id,saleId:row.item.sale_id});outbox.delete(row.key);}await complete(tx);}
+export async function acknowledgeDeletions(db,userId,acks){const tx=db.transaction(['outbox','snapshots','accepted','removed'],'readwrite'),outbox=tx.objectStore('outbox'),snapshots=tx.objectStore('snapshots'),accepted=tx.objectStore('accepted'),removed=tx.objectStore('removed');for(const ack of acks){const row=await result(outbox.get(key(userId,ack.delete_id)));if(!row||row.kind!=='delete')continue;const month=bangkokMonth(row.item.sold_at),record=await result(snapshots.get(key(userId,month)));if(record){record.data.sales=record.data.sales.filter(s=>s.sale_id!==row.item.sale_id&&s.request_id!==row.item.request_id);snapshots.put(record)}accepted.delete(key(userId,row.item.request_id));removed.put({key:key(userId,row.item.request_id),userId,month,requestId:row.item.request_id,saleId:row.item.sale_id});outbox.delete(row.key);}await complete(tx);}
 export async function getLocalCatalog(db){const tx=db.transaction('meta','readonly');return (await result(tx.objectStore('meta').get('catalog-history')))?.history||null;}
 export async function saveLocalCatalog(db,history){const tx=db.transaction('meta','readwrite');tx.objectStore('meta').put({key:'catalog-history',history});await complete(tx);}

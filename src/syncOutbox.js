@@ -1,5 +1,6 @@
 import {pendingSales,acknowledgeSales,repairPendingSales,markAttempted,acknowledgeDeletions} from './localDb.js';
 import {validateHistory,repairItem} from './catalogVersions.js';
+import {bangkokMonth} from './bangkokMonth.js';
 // A single request per chunk; only acknowledged records leave the outbox.
 export async function syncOutbox({db,userId,send,sendDeletes,fetchHistory,onHistory=async()=>{},onProgress=()=>{}}){
  let repaired=false,confirmed=0;
@@ -17,7 +18,7 @@ export async function syncOutbox({db,userId,send,sendDeletes,fetchHistory,onHist
   const allowed=new Map(pending.map(x=>[x.requestId,x]));const received=new Set();
   for(const sale of response.sales){if(!sale?.request_id||!sale.sale_id||!allowed.has(sale.request_id)||received.has(sale.request_id))throw new Error('ผลยืนยันไม่ถูกต้อง');received.add(sale.request_id);}
   if(received.size!==pending.length)throw new Error('ผลยืนยันไม่ครบ กรุณาลองส่งอีกครั้ง');
-  const grouped=new Map();for(const sale of response.sales){const month=allowed.get(sale.request_id).item.sold_at.slice(0,7);if(!grouped.has(month))grouped.set(month,[]);grouped.get(month).push(sale);}
+  const grouped=new Map();for(const sale of response.sales){const month=bangkokMonth(allowed.get(sale.request_id).item.sold_at);if(!grouped.has(month))grouped.set(month,[]);grouped.get(month).push(sale);}
   for(const [month,sales] of grouped)await acknowledgeSales(db,userId,month,sales);
   confirmed+=response.sales.length;onProgress({status:'SYNCING',confirmed});
  }
