@@ -33,7 +33,11 @@ export function createBridgeTransport({url, sandboxOrigin, hostWindow=window, ho
   if(result?.ok===true)item.resolve(result.data);else {const error=new Error(result?.error||'ไม่สามารถทำรายการได้');error.code=result?.code;item.reject(error);}
  }
  hostWindow.addEventListener('message',receive);
- frame=hostDocument.createElement('iframe');frame.hidden=true;frame.title='การเชื่อมต่อระบบ';frame.src=url;hostDocument.body.appendChild(frame);
+ frame=hostDocument.createElement('iframe');frame.hidden=true;frame.title='การเชื่อมต่อระบบ';
+ // The public bridge must not inherit a Google account from the device.
+ // Browsers without credentialless keep their existing behavior.
+ if ('credentialless' in frame) frame.credentialless=true;
+ frame.src=url;hostDocument.body.appendChild(frame);
  async function request({credential,action,payload}) {
   await ready;
   if(disposed||!remote)throw new Error('การเชื่อมต่อถูกปิด');
