@@ -1,0 +1,11 @@
+<!doctype html><html lang="th"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>ตรวจการเชื่อมต่อ</title></head><body><h1>ตรวจการเชื่อมต่อ</h1><p id="status">กำลังตรวจสอบ กรุณารอสักครู่...</p><script>
+const status=document.getElementById('status');
+const origin='https://n-xae5iyz5onj5hcmpz7hureougef2fof6sk6cfni-0lu-script.googleusercontent.com';
+const frame=document.createElement('iframe');frame.hidden=true;frame.title='การเชื่อมต่อทดสอบ';
+if('credentialless' in frame)frame.credentialless=true;
+let remote=null;const id='connection-check';const timer=setTimeout(()=>status.textContent='เชื่อมต่อไม่สำเร็จ กรุณาแจ้งผลให้ผู้ดูแล',60000);
+window.addEventListener('message',e=>{if(e.origin!==origin||!e.data)return;let node=e.source,belongs=false;try{for(let i=0;i<6&&node;i++){if(node===frame.contentWindow){belongs=true;break;}if(node===node.parent)break;node=node.parent;}}catch{}if(!belongs)return;
+if(e.data.type==='vivo-ready'&&!remote){remote=e.source;remote.postMessage({type:'vivo-request',id,token:'vivo-public',action:'pinManagers',payload:{}},origin);}
+else if(e.source===remote&&e.data.type==='vivo-response'&&e.data.id===id){clearTimeout(timer);status.textContent=e.data.result?.ok?'เชื่อมต่อสำเร็จ':'เชื่อมต่อได้ แต่เซิร์ฟเวอร์ตอบกลับผิดพลาด';}});
+frame.src='https://script.google.com/macros/s/AKfycbwNGeNwSW0ePYtEIxXRakWo1S_cNNAiuD-aNau9pRBpBuQLvh3hJOsuJViGSVfR3h-5/exec';document.body.appendChild(frame);
+</script></body></html>
